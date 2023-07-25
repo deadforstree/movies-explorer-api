@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const validator = require('validator');
 
 const movieSchema = new mongoose.Schema({
   country: {
@@ -25,34 +26,30 @@ const movieSchema = new mongoose.Schema({
     type: String,
     required: true,
     validate: {
-      validator(v) {
-        return /^(https?:\/\/)(www\.)?[\w-]+(\.[a-z])+[\w~!@#$%&*()-+=:;\\'",.?/]+#?/gi.test(v);
-      },
+      validator: (v) => validator.isURL(v),
+      message: 'Некорректный URL',
     },
   },
-  trailer: {
+  trailerLink: {
     type: String,
     required: true,
     validate: {
-      validator(v) {
-        return /^(https?:\/\/)(www\.)?[\w-]+(\.[a-z])+[\w~!@#$%&*()-+=:;\\'",.?/]+#?/gi.test(v);
-      },
+      validator: (v) => validator.isURL(v),
+      message: 'Некорректный URL',
     },
   },
   thumbnail: {
     type: String,
     required: true,
     validate: {
-      validator(v) {
-        return /^(https?:\/\/)(www\.)?[\w-]+(\.[a-z])+[\w~!@#$%&*()-+=:;\\'",.?/]+#?/gi.test(v);
-      },
+      validator: (v) => validator.isURL(v),
+      message: 'Некорректный URL',
     },
   },
   owner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'user',
     required: true,
-    select: false,
   },
   movieId: {
     type: Number,

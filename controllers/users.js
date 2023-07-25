@@ -1,91 +1,37 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/user');
-const NotFoundError = require('../errors/not-found-err');
-const BadRequestErr = require('../errors/bad-request-err');
-const ConflictErr = require('../errors/conflict-err');
-const {
-  invalidDataErrorText, invalidUserIdErrorText, userIdNotFoundText,
-  duplicateEmailErrorText,
-} = require('../errors/error-texts');
+const NotFoundError = require('../errors/not-found-error');
+const BadRequestError = require('../errors/bad-request-error');
+const ConflictError = require('../errors/conflict-error');
 
 const { NODE_ENV, JWT_SECRET } = process.env;
 
-module.exports.getUser = (req, res, next) => {
-  User.findById(req.user._id)
-    .then((user) => {
-      if (!user) {
-        throw new NotFoundError(userIdNotFoundText);
-      } else {
-        res.status(200).send(user);
-      }
-    })
-    .catch((err) => {
-      if (err.name === 'CastError') {
-        throw new BadRequestErr(invalidUserIdErrorText);
-      }
-      return next(err);
-    })
-    .catch(next);
-};
-
-module.exports.updateUser = (req, res, next) => {
-  const { email, name } = req.body;
-
-  User.findByIdAndUpdate(req.user._id, { email, name }, {
-    new: true,
-    runValidators: true,
-    upsert: false,
-  })
-    .then((user) => {
-      if (!user) {
-        throw new NotFoundError(userIdNotFoundText);
-      } else {
-        res.status(200).send(user);
-      }
-    })
-    .catch((err) => {
-      if (err.name === 'ValidationError') {
-        throw new BadRequestErr(invalidDataErrorText);
-      } else if (err.name === 'CastError') {
-        throw new BadRequestErr(invalidUserIdErrorText);
-      } else if (err.codeName === 'DuplicateKey') {
-        throw new ConflictErr(duplicateEmailErrorText);
-      }
-      return next(err);
-    })
-    .catch(next);
-};
-
 module.exports.createUser = (req, res, next) => {
-  const {
-    email, password, name,
-  } = req.body;
+  const { email, password, name } = req.body;
 
-  User.findOne({ email })
-    .then((user) => {
-      if (user) {
-        throw new ConflictErr(duplicateEmailErrorText);
-      }
-      return bcrypt.hash(password, 10);
-    })
+  bcrypt.hash(password, 10)
     .then((hash) => User.create({
       email, password: hash, name,
-    })
-      .then((user) => res.status(200).send({
-        user: {
+    }))
+    .then((user) => {
+      res
+        .status(201)
+        .send({
           email: user.email,
           name: user.name,
-          _id: user._id,
-        },
-      }))
-      .catch((err) => {
-        if (err.name === 'ValidationError') {
-          throw new BadRequestErr(invalidDataErrorText);
-        }
-        return next(err);
-      }))
-    .catch(next);
+        });
+    })
+    .catch((err) => {
+      if (err.code === 11000) {
+        next(new ConflictError('пользователь с таким email уже существует'));
+      }
+      if (err.name === 'ValidationError') {
+        next(new BadRequestError('Ошибка валидации полей'));
+      } else {
+        next(err);
+      }
+    });
 };
 
 module.exports.login = (req, res, next) => {
@@ -98,8 +44,58 @@ module.exports.login = (req, res, next) => {
         NODE_ENV === 'production' ? JWT_SECRET : 'dev-secret',
         { expiresIn: '7d' },
       );
-
-      res.status(200).send({ token });
+      res.send({ token });
     })
     .catch(next);
+};
+
+module.exports.getUserInfo = (req, res, next) => {
+  const { _id } = req.user;
+
+  User.findById(_id)
+    .then((user) => {
+      if (!user) {
+        throw new NotFoundError('Пользователь с указанным id не найден');
+      }
+      res.send(user);
+    })
+    .catch((err) => {
+      if (err.name === 'CastError') {
+        next(new BadRequestError('Некорректный id пользователя'));
+      } else {
+        next(err);
+      }
+    });
+};
+
+module.exports.updateUserInfo = (req, res, next) => {
+  const userId = req.user._id;
+  const { name, email } = req.body;
+
+  User.findByIdAndUpdate(
+    userId,
+    { name, email },
+    {
+      new: true,
+      runValidators: true,
+    },
+  )
+    .then((user) => {
+      if (!user) {
+        throw new NotFoundError('Пользователь с указанным id не найден');
+      }
+      res.send(user);
+    })
+    .catch((err) => {
+      if (err.code === 11000) {
+        next(new ConflictError('пользователь с таким email уже существует'));
+      }
+      if (err.name === 'ValidationError') {
+        next(new BadRequestError('Ошибка валидации полей'));
+      } else if (err.name === 'CastError') {
+        next(new BadRequestError('Некорректный id пользователя'));
+      } else {
+        next(err);
+      }
+    });
 };

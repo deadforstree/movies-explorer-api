@@ -1,4 +1,4 @@
-module.exports = function centralError(err, req, res, next) {
+module.exports = (err, req, res, next) => {
   const { statusCode = 500, message } = err;
 
   res
@@ -8,5 +8,6 @@ module.exports = function centralError(err, req, res, next) {
         ? 'На сервере произошла ошибка'
         : message,
     });
+
   next();
 };
